@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'voice_assistant.dart';
 import 'api_service.dart';
 import 'camera_service.dart';
+import 'recall_logo.dart';
 
 void main() {
   runApp(const MyApp());
@@ -16,7 +17,13 @@ class MyApp extends StatelessWidget {
       title: "Recall AI",
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        primarySwatch: Colors.blue,
+        primaryColor: const Color(0xFF3A7AFE),
+        scaffoldBackgroundColor: const Color(0xFFF5F7FB),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFF3A7AFE),
+          elevation: 0,
+          centerTitle: true,
+        ),
       ),
       home: const RecallHome(),
     );
@@ -41,6 +48,8 @@ class _RecallHomeState extends State<RecallHome> {
 
   Future<void> listen() async {
 
+    if (listening) return;
+
     setState(() {
       listening = true;
       text = "Listening...";
@@ -51,12 +60,10 @@ class _RecallHomeState extends State<RecallHome> {
       String speech = await voice.listen();
 
       if (speech.isEmpty) {
-
         setState(() {
           text = "I couldn't hear anything.";
           listening = false;
         });
-
         return;
       }
 
@@ -64,13 +71,11 @@ class _RecallHomeState extends State<RecallHome> {
         text = "You said: $speech";
       });
 
-      /// Example camera trigger (future feature)
       if (speech.toLowerCase().contains("take picture")) {
 
         String? imagePath = await camera.takePicture();
 
         if (imagePath != null) {
-
           setState(() {
             text = "Picture captured!";
           });
@@ -78,18 +83,18 @@ class _RecallHomeState extends State<RecallHome> {
           await voice.speak("Picture captured");
 
         } else {
-
           setState(() {
             text = "Camera cancelled.";
           });
-
         }
 
-        listening = false;
+        setState(() {
+          listening = false;
+        });
+
         return;
       }
 
-      /// Send voice command to backend
       String response = await api.sendCommand(speech);
 
       await voice.speak(response);
@@ -109,6 +114,7 @@ class _RecallHomeState extends State<RecallHome> {
     setState(() {
       listening = false;
     });
+
   }
 
   @override
@@ -118,50 +124,76 @@ class _RecallHomeState extends State<RecallHome> {
 
       appBar: AppBar(
         title: const Text("Recall AI"),
-        centerTitle: true,
       ),
 
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
+      body: Container(
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage("assets/images/bg_img.jpeg"),
+            fit: BoxFit.cover,
+          ),
+        ),
 
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
 
-              const Icon(
-                Icons.memory,
-                size: 100,
-                color: Colors.blue,
-              ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
 
-              const SizedBox(height: 30),
+                const RecallLogo(),
 
-              Text(
-                text,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 20,
-                ),
-              ),
+                const SizedBox(height: 25),
 
-              const SizedBox(height: 40),
-
-              ElevatedButton.icon(
-                onPressed: listening ? null : listen,
-                icon: const Icon(Icons.mic),
-                label: Text(
-                  listening ? "Listening..." : "Speak",
-                ),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 30,
-                    vertical: 15,
+                Text(
+                  text,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white, // 👈 TEXT WHITE KAR DIYA
                   ),
                 ),
-              ),
 
-            ],
+                const SizedBox(height: 40),
+
+                GestureDetector(
+                  onTap: listening ? null : listen,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    height: 80,
+                    width: 80,
+                    decoration: BoxDecoration(
+                      color: listening ? Colors.red : const Color(0xFF3A7AFE),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.white.withOpacity(0.2),
+                          blurRadius: 10,
+                          spreadRadius: 2,
+                        )
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.mic,
+                      color: Colors.white,
+                      size: 35,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                Text(
+                  listening
+                      ? "Listening..."
+                      : "Tap the mic and speak your reminder",
+                  style: const TextStyle(color: Colors.grey),
+                ),
+
+              ],
+            ),
           ),
         ),
       ),

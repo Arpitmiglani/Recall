@@ -3,52 +3,50 @@ import 'package:flutter_tts/flutter_tts.dart';
 
 class VoiceService {
 
-final SpeechToText speech = SpeechToText();
-final FlutterTts tts = FlutterTts();
+  final SpeechToText speech = SpeechToText();
+  final FlutterTts tts = FlutterTts();
 
-String recognizedText = "";
+  String recognizedText = "";
 
-Future<String> listen() async {
+  Future<String> listen() async {
 
+    bool available = await speech.initialize(
+      onStatus: (status) {
+        print("Speech status: $status");
+      },
+      onError: (error) {
+        print("Speech error");
+      },
+    );
 
-bool available = await speech.initialize();
-
-if (!available) {
-  return "";
-}
-
-recognizedText = "";
-
-await speech.listen(
-  onResult: (result) {
-    if (result.finalResult) {
-      recognizedText = result.recognizedWords;
+    if (!available) {
+      return "";
     }
-  },
-  listenFor: const Duration(seconds: 5),
-  pauseFor: const Duration(seconds: 2),
-  partialResults: false,
-  localeId: "en_US",
-);
 
-await Future.delayed(const Duration(seconds: 5));
+    recognizedText = "";
 
-await speech.stop();
+    await speech.listen(
+      onResult: (result) {
+        recognizedText = result.recognizedWords;
+      },
+      listenFor: const Duration(seconds: 30),
+      pauseFor: const Duration(seconds: 4),
+      localeId: "en_US",
+    );
 
-return recognizedText;
+    await Future.delayed(const Duration(seconds: 6));
 
-}
+    await speech.stop();
 
-Future<void> speak(String text) async {
+    return recognizedText;
+  }
 
+  Future<void> speak(String text) async {
 
-await tts.setLanguage("en-US");
-await tts.setSpeechRate(0.5);
-await tts.setPitch(1.0);
+    await tts.setLanguage("en-US");
+    await tts.setSpeechRate(0.5);
+    await tts.setPitch(1.0);
 
-await tts.speak(text);
-
-
-}
-
+    await tts.speak(text);
+  }
 }

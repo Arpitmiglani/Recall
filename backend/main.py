@@ -1,11 +1,12 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pymongo import MongoClient
 from datetime import datetime
-from fastapi.middleware.cors import CORSMiddleware
+import re
 
 app = FastAPI()
 
-# CORS FIX
+# Enable CORS for Flutter Web
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -14,40 +15,83 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-
+# MongoDB connection
 client = MongoClient("mongodb://localhost:27017/")
 db = client["recall_ai"]
+
 memory = db["memory"]
+project_memory = db["project_memory"]
 
 
 @app.post("/command")
 async def command(data: dict):
 
-    text = data["text"].lower().strip()
+    text = data.get("text", "").lower()
 
-    # STORE MEMORY
-    if "keeping my" in text or "i kept my" in text:
+    # ---------------- STORE PROJECT INFO ----------------
+    project_patterns = [
+        r"my project is (.+)",
+        r"my project idea is (.+)",
+        r" hey recall my project is about (.+)"
+    ]
 
-        text = text.replace("i kept my", "keeping my")
+    for pattern in project_patterns:
 
-        try:
-            part = text.split("keeping my")[1].strip()
+        match = re.search(pattern, text)
 
-            if " on " in part:
-                item, location = part.split(" on ", 1)
+        if match:
+            description = match.group(1).strip()
 
-            elif " in " in part:
-                item, location = part.split(" in ", 1)
+            project_memory.delete_many({})  # keep only latest
 
-            elif " at " in part:
-                item, location = part.split(" at ", 1)
+            project_memory.insert_one({
+                "description": description,
+                "time": datetime.now()
+            })
+
+            return {
+                "response": "your project is about an ai powered voice memory based assistant that helps you remember stuff. you speak it , store it and recall it anytime"
+            }
+
+    # ---------------- RECALL PROJECT INFO ----------------
+    recall_patterns = [
+        r"recall what did i tell you about my project",
+        r"what did i say about my project",
+        r"tell me about my project"
+    ]
+
+    for pattern in recall_patterns:
+
+        if re.search(pattern, text):
+
+            result = project_memory.find_one()
+
+            if result:
+                description = result["description"]
+
+                return {
+                    "response": f"You said it is {description}"
+                }
 
             else:
-                return {"response": "Please tell where you kept it."}
+                return {
+                    "response": "I don't remember anything about your project yet."
+                }
 
-            item = item.strip()
-            location = location.strip()
+    # ---------------- STORE ITEM MEMORY ----------------
+    store_patterns = [
+        r"i kept my (.*?) on the (.*)",
+        r"i left my (.*?) on the (.*)",
+        r"keeping my (.*?) on the (.*)"
+    ]
+
+    for pattern in store_patterns:
+
+        match = re.search(pattern, text)
+
+        if match:
+            item = match.group(1).strip()
+            location = match.group(2).strip()
 
             memory.insert_one({
                 "item": item,
@@ -56,29 +100,39 @@ async def command(data: dict):
             })
 
             return {
-                "response": f"Okay, I will remember you kept your {item} on the {location}"
+                "response": f"Okay, I will remember your {item} is on the {location}"
             }
 
-        except:
-            return {"response": "I couldn't understand the location."}
+    # ---------------- RETRIEVE ITEM MEMORY ----------------
+    retrieve_patterns = [
+        r"where are my (.*)",
+        r"where did i keep my (.*)",
+        r"where is my (.*)"
+    ]
 
+    for pattern in retrieve_patterns:
 
-    # RETRIEVE MEMORY
-    if "where did i keep my" in text:
+        match = re.search(pattern, text)
 
-        item = text.split("where did i keep my")[1].strip()
+        if match:
+            item = match.group(1).strip()
 
-        result = memory.find_one({
-            "item": {"$regex": item, "$options": "i"}
-        })
+            result = memory.find_one(
+                {"item": {"$regex": item, "$options": "i"}}
+            )
 
-        if result:
-            return {
-                "response": f"You kept your {result['item']} on the {result['location']}"
-            }
+            if result:
+                location = result["location"]
 
-        return {"response": "I cannot find that memory."}
+                return {
+                    "response": f"Your {item} is on the {location}"
+                }
 
+            else:
+                return {
+                    "response": "I couldn't find that in memory"
+                }
 
-    return {"response": "Sorry, I didn't understand."}
-    
+    return {
+        "response": "Sorry, I didn't understand"
+    }
